@@ -55,7 +55,9 @@ def swap_image_to_image(src_paths, dst_paths, out_paths, args):
             tfm_array_list,
             handler,
         )
-        print(f"Writing to {out_path}")
+        if args.crop_final_result:
+            result = crop_face(result, app, args.crop_size)[0]
+
         cv2.imwrite(out_path, result)
 
 

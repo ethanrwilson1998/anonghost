@@ -94,6 +94,12 @@ def base_parser():
         type=float,
         help="Threshold for selecting a face similar to the target",
     )
+    parser.add_argument(
+        "--crop_final_result",
+        default=False,
+        type=bool,
+        help="Whether to crop final result to face, or leave the entire image.",
+    )
 
     return parser
 

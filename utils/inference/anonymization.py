@@ -3,29 +3,24 @@ import scipy
 import torch
 from scipy.stats import uniform_direction
 
-LAST_EMBEDDING = np.zeros(512)
-COUNT = 0
-
 
 def anonymize(embedding_torch, epsilon=1, theta=90):
-    global LAST_EMBEDDING, COUNT
     # reshape to a 512 numpy array
     device = embedding_torch.device
     embedding = embedding_torch.cpu().detach().numpy()
     embedding = np.squeeze(embedding)
-    real_std = np.std(embedding)
-    print(f"real embedding stats: mean={np.mean(embedding)}, std={np.std(embedding)}")
+    real_mean, real_std = np.mean(embedding), np.std(embedding)
 
-    # verify that the embedding is normalized
-    UD = uniform_direction(dim=512)
+    # normalize the embedding
     embedding = embedding / np.linalg.norm(embedding)
 
     # first, apply a random rotation sampled from VMF to give DP guarantees
     if epsilon > 0:
         sample = rvMF(1, embedding * epsilon)
-        rotated = sample[0]
-
+        sample = np.asarray(sample)
+        rotated = np.squeeze(sample)
     elif epsilon == 0:
+        UD = uniform_direction(dim=512)
         rotated = UD.rvs()
 
     # then apply a follow-up rotation
@@ -33,16 +28,14 @@ def anonymize(embedding_torch, epsilon=1, theta=90):
         theta_rads = theta * np.pi / 180
         rotated = rotate_embedding(rotated, theta_rads)
 
+    # match std to the original
+    # rotated = rotated - np.mean(rotated)
     rotated = rotated / np.std(rotated)
     rotated = rotated * real_std
+    # rotated = rotated / np.linalg.norm(rotated)
+    # rotated = rotated + real_mean
 
-    print(f"rotated embedding stats: mean={np.mean(rotated)}, std={np.std(rotated)}")
-
-    print(f"for {COUNT}: {(rotated - LAST_EMBEDDING)[:, 0:10]}")
-    COUNT += 1
-    LAST_EMBEDDING = rotated
-
-    embedding_torch = torch.from_numpy(rotated)
+    embedding_torch = torch.from_numpy(rotated.reshape(1, -1))
     embedding_torch = embedding_torch.to(device=device)
 
     return embedding_torch
@@ -119,13 +112,10 @@ def rvMF(n, theta):
     for sample in range(0, n):
         w = rW(n, kappa, dim)
         w = np.asarray(w)
-        print(f"w: {w.shape}")
         # v = np.random.randn(dim)
         # v = v / np.linalg.norm(v)
         v = sample_tangent_unit(mu)
         v = np.squeeze(v)
-
-        print(f"v: {v.shape}")
 
         result.append(np.sqrt(1 - w**2) * v + w * mu)
 
