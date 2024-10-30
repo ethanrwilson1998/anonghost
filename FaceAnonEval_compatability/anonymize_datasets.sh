@@ -8,7 +8,9 @@ do
 
         for t in 0 30 60 90 120 150 180
         do
-            python3.8 anonymize_dataset.py --dataset CelebA --input_dir /Datasets/$ds --output_dir /Anonymized\ Datasets/"{$ds}_eps{$e}_theta{$t}" --epsilon $e --theta $t
+
+            od=$ds"_eps"$e"_theta"$t
+            python3.8 anonymize_dataset.py --input_dir /Datasets/$ds --output_dir /Anonymized\ Datasets/$od --epsilon $e --theta $t
         done
     done
 done
