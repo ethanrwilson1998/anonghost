@@ -22,6 +22,8 @@ def anonymize(embedding_torch, epsilon=1, theta=90):
     elif epsilon == 0:
         UD = uniform_direction(dim=512)
         rotated = UD.rvs()
+    else:
+        rotated = embedding
 
     # then apply a follow-up rotation
     if theta > 0:

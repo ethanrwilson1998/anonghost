@@ -1,5 +1,7 @@
 import glob
 import ntpath
+import os
+import traceback
 
 import cv2
 import numpy as np
@@ -13,6 +15,7 @@ from utils.startup import anon_parser, grab_models
 
 
 def anonymize_image(img_paths, out_paths, args):
+    np.random.seed(420)
     app, G, netArc, handler, model = grab_models(args)
 
     if not isinstance(img_paths, list):
@@ -25,18 +28,21 @@ def anonymize_image(img_paths, out_paths, args):
     for i, (img_path, out_path) in enumerate(zip(img_paths, out_paths)):
         try:
             src_img = cv2.imread(img_path)
+
             src_img = crop_face(src_img, app, args.crop_size)[0]
+
             source = [src_img[:, :, ::-1]]
 
             dst_img = cv2.imread(img_path)
             full_frames = [dst_img]
             dst_img = crop_face(dst_img, app, args.crop_size)[0]
+
             target = [dst_img]
 
             out_grid = []
-            for _ in range(args.grid[0]):
+            for g0 in range(args.grid[0]):
                 in_grid = []
-                for _ in range(args.grid[1]):
+                for g1 in range(args.grid[1]):
                     final_frames_list, crop_frames_list, full_frames, tfm_array_list = (
                         model_anonymize(
                             full_frames,
@@ -65,7 +71,11 @@ def anonymize_image(img_paths, out_paths, args):
                     )
                     if args.crop_final_result:
                         result = crop_face(result, app, args.crop_size)[0]
-                    in_grid.append(result)
+                    in_grid.append(
+                        cv2.resize(src_img, (result.shape[1], result.shape[0]))
+                        if g0 == 1 and g1 == 1
+                        else result
+                    )
                 out_grid.append(in_grid)
 
             if args.grid != [1, 1]:
@@ -76,6 +86,7 @@ def anonymize_image(img_paths, out_paths, args):
                 cv2.imwrite(out_path, result)
         except Exception as e:
             print(f"Failed on {img_path} - {e}")
+            print(traceback.format_exc())
             exc_count += 1
 
     if exc_count > 0:
@@ -83,22 +94,47 @@ def anonymize_image(img_paths, out_paths, args):
 
 
 def main(args):
-    for eps in [0, 1, 1e1, 1e2, 1e3, 1e4]:
-        args.epsilon = eps
+    for theta in range(0, 180):
+        args.epsilon = -1
+        args.theta = theta
 
         src_paths, out_paths = [], []
-        test_imgs = glob.glob("examples/images/*.jpg")
+        if args.image_dir[-4] in [".jpg", ".png"]:
+            test_imgs = [args.image_dir]
+        else:
+            test_imgs = glob.glob(f"{args.image_dir}/*.jpg") + glob.glob(
+                f"{args.image_dir}/*.png"
+            )
         for t in test_imgs:
             src_paths.append(t)
-            out_paths.append(
-                f"results/{ntpath.basename(t).split('.')[0]}_eps{args.epsilon}_theta{args.theta}.jpg"
-            )
-
+            os.makedirs(f"results/{ntpath.basename(t).split('.')[0]}/", exist_ok=True)
+            out_paths.append(f"results/{ntpath.basename(t).split('.')[0]}/{theta}.jpg")
         anonymize_image(src_paths, out_paths, args)
+
+    # src_paths, out_paths = [], []
+    # if args.image_dir[-4] in [".jpg", ".png"]:
+    #     test_imgs = [args.image_dir]
+    # else:
+    #     test_imgs = glob.glob(f"{args.image_dir}/*.jpg") + glob.glob(
+    #         f"{args.image_dir}/*.png"
+    #     )
+    # for t in test_imgs:
+    #     src_paths.append(t)
+    #     out_paths.append(
+    #         f"results/{ntpath.basename(t).split('.')[0]}_eps{args.epsilon}_theta{args.theta}.jpg"
+    #     )
+
+    # anonymize_image(src_paths, out_paths, args)
 
 
 if __name__ == "__main__":
     parser = anon_parser()
+    parser.add_argument(
+        "--image_dir",
+        default="examples/images",
+        type=str,
+        help="Which directory to anonymize.",
+    )
     parser.add_argument(
         "--grid",
         default=[1, 1],
@@ -108,3 +144,6 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
     main(args)
+
+# generate grid videos with this:
+# ffmpeg -framerate 15 -i %d.jpg -c:v libx264 -crf 1 -vf scale=1536:1536 -pix_fmt yuv420p -vb 100M out.mp4

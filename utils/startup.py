@@ -18,7 +18,7 @@ MODELS = None
 def init_models(args):
     # model for face cropping
     app = Face_detect_crop(name="antelope", root="./insightface_func/models")
-    app.prepare(ctx_id=0, det_thresh=0.6, det_size=(640, 640))
+    app.prepare(ctx_id=0, det_thresh=0.2, det_size=(640, 640))
 
     # main model for generation
     G = AEI_Net(args.backbone, num_blocks=args.num_blocks, c_id=512)
